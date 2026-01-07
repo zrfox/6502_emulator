@@ -3,7 +3,7 @@
 int disassemble6502(unsigned char* codeBuffer, int pc);
 
 unsigned char* executeInstruction(unsigned char* opcode);
-unsigned char decodeBase64(unsigned char* value);
+unsigned char decodeBase64(unsigned char value);
 
 int main()
 {
@@ -12,13 +12,13 @@ int main()
 
 // this will take the ASCII char used for base64 and make it the numerical value it represents
 // do we need to add + 0 to make sure this evaluates to a numerical value? idk if it matters
-unsigned char decodeBase64(unsigned char* value)
+unsigned char decodeBase64(const char char64)
 {
     //if value is >= 'A' and <= 'Z' then subtract 'A'
-    return (*value >= 'A' && *value <= 'Z') ? (*value - 'A' + 0)
-        : (*value >= 'a' && *value <= 'z') ? (*value - 'a' + 26)
-        : (*value >= '0' && *value <= '9') ? (*value - '0' + 52)
-        : (*value == '+') ? 62 : 63;
+    return (char64 >= 'A' && char64 <= 'Z') ? (char64 - 'A' + 0)
+        : (char64 >= 'a' && char64 <= 'z') ? (char64 - 'a' + 26)
+        : (char64 >= '0' && char64 <= '9') ? (char64 - '0' + 52)
+        : (char64 == '+') ? 62 : 63;
 
         // if value is >= 'a' and <= 'z' then subtract 'a' and add 26
 
@@ -27,8 +27,18 @@ unsigned char decodeBase64(unsigned char* value)
         // if + num is 62 else num is 63
 }
 
-unsigned char* executeInstruction(unsigned char* opcode)
+unsigned char* executeInstruction(unsigned char opcode)
 {
+    // divide opcode by 6 to find which base64 character holds the bit to represent that opcode's flag
+    int index = opcode / 6;
+    // remainder determines which bit of the 6 is the exact bit in that base64 character
+    int bit = opcode % 6;
+    // shift constant bit times to get the proper bitmask
+    int bitmask = 1 << bit;
+#define t(pattern) if (decodeBase64(pattern[index]) & bitmask)
+
+    t("");
+
 
 }
 
