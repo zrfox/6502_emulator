@@ -7,12 +7,37 @@ uint8_t decodeBase64(const uint8_t charB64);
 
 class CPU_6502 {
 private:
-    // Likely besjt to keep these private, but may need to consider them as public for interacting with rest of code? Idk yet. 
-    unsigned char accumulator;
+    // Likely best to keep these private, but may need to consider them as public for interacting with rest of code? Idk yet. 
+    uint8_t m_accumulator;
+    uint8_t m_indexRegX;
+    uint8_t m_indexRegY;
+    uint16_t m_programCounter;
+    uint16_t m_stackPtr;
+
+    // flags
+    uint8_t m_carry = 0;
+    uint8_t m_zero = 0;
+    uint8_t m_interruptDisable = 0;
+    uint8_t m_decimalMode = 0;
+    uint8_t m_breakCommand = 0;
+    uint8_t m_overflow = 0;
+    uint8_t m_negative = 0;
+
+    // memory map.
+    uint8_t m_memory_map[65536];
+
+    // instructions
+    uint8_t loadAccumulator(uint8_t byte);
 
 public:
 
 };
+
+uint8_t loadAccumulator(uint8_t byte) {
+    // loads a byte of emmory into the accumulator setting the zero and neg flags as appropriate.
+    // you can load constant values and values at addresses I think? So, should I have a separate function for getting values from addresses to pass here?
+    // maybe not, just dereference those values mayber? idk yet. 
+}
 
 
 int main()
