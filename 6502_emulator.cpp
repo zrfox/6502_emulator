@@ -2,8 +2,18 @@
 
 int disassemble6502(unsigned char* codeBuffer, int pc);
 
-unsigned char* executeInstruction(unsigned char* opcode);
-unsigned char decodeBase64(unsigned char value);
+void executeInstruction(uint8_t opcode);
+uint8_t decodeBase64(const uint8_t charB64);
+
+class CPU_6502 {
+private:
+    // Likely besjt to keep these private, but may need to consider them as public for interacting with rest of code? Idk yet. 
+    unsigned char accumulator;
+
+public:
+
+};
+
 
 int main()
 {
@@ -12,13 +22,13 @@ int main()
 
 // this will take the ASCII char used for base64 and make it the numerical value it represents
 // do we need to add + 0 to make sure this evaluates to a numerical value? idk if it matters
-unsigned char decodeBase64(const char char64)
+uint8_t decodeBase64(const uint8_t charB64)
 {
     //if value is >= 'A' and <= 'Z' then subtract 'A'
-    return (char64 >= 'A' && char64 <= 'Z') ? (char64 - 'A' + 0)
-        : (char64 >= 'a' && char64 <= 'z') ? (char64 - 'a' + 26)
-        : (char64 >= '0' && char64 <= '9') ? (char64 - '0' + 52)
-        : (char64 == '+') ? 62 : 63;
+    return (charB64 >= 'A' && charB64 <= 'Z') ? (charB64 - 'A' + 0)
+        : (charB64 >= 'a' && charB64 <= 'z') ? (charB64 - 'a' + 26)
+        : (charB64 >= '0' && charB64 <= '9') ? (charB64 - '0' + 52)
+        : (charB64 == '+') ? 62 : 63;
 
         // if value is >= 'a' and <= 'z' then subtract 'a' and add 26
 
@@ -27,14 +37,14 @@ unsigned char decodeBase64(const char char64)
         // if + num is 62 else num is 63
 }
 
-unsigned char* executeInstruction(unsigned char opcode)
+void executeInstruction(uint8_t opcode)
 {
     // divide opcode by 6 to find which base64 character holds the bit to represent that opcode's flag
-    int index = opcode / 6;
+    uint8_t index = opcode / 6;
     // remainder determines which bit of the 6 is the exact bit in that base64 character
-    int bit = opcode % 6;
+    uint8_t bit = opcode % 6;
     // shift constant bit times to get the proper bitmask
-    int bitmask = 1 << bit;
+    uint8_t bitmask = 1 << bit;
 #define t(pattern) if (decodeBase64(pattern[index]) & bitmask)
 
     t("");
