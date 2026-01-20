@@ -5,7 +5,9 @@ int disassemble6502(unsigned char* codeBuffer, int pc);
 void executeInstruction(uint8_t opcode);
 uint8_t decodeBase64(const uint8_t charB64);
 
-class CPU_6502 {
+
+class CPU_6502 
+{
 private:
     // Likely best to keep these private, but may need to consider them as public for interacting with rest of code? Idk yet. 
     uint8_t m_accumulator;
@@ -24,21 +26,61 @@ private:
     uint8_t m_negative = 0;
 
     // memory map.
-    uint8_t m_memory_map[65536];
+    uint8_t m_memoryMap[65536];
 
     // instructions
     uint8_t loadAccumulator(uint8_t byte);
+    
+    // address modes
+    uint8_t getAddressValue(uint16_t address);
+
+    // utilities
+    uint16_t create16Bit(uint8_t lowByte);
+    uint16_t create16Bit(uint8_t lowByte, uint8_t highByte);
+
+
+
 
 public:
 
 };
 
-uint8_t loadAccumulator(uint8_t byte) {
+uint8_t CPU_6502::loadAccumulator(uint8_t byte)
+{
     // loads a byte of emmory into the accumulator setting the zero and neg flags as appropriate.
     // you can load constant values and values at addresses I think? So, should I have a separate function for getting values from addresses to pass here?
     // maybe not, just dereference those values mayber? idk yet. 
+    // actually, seems like the value doesn't matter whether it's a memory addres or constant, just add it. 
+    this->m_accumulator = byte;
+    if (byte == 0)
+    {
+        this->m_zero = 1;
+    }
+    else if (byte & 128)
+    {
+        this->m_negative = 1;
+    }
 }
 
+// pass pointer because we need multiple bytes? make it by reference so it isn't a copy of pointer and points to something? 
+uint8_t CPU_6502::getAddressValue(uint16_t address)
+{
+    return this->m_memoryMap[address];
+}
+
+// maybe this is overkill to have a function just to static_cast? idk, feels clean atm. 
+uint16_t CPU_6502::create16Bit(uint8_t lowByte)
+{
+    uint16_t result = static_cast<uint16_t>(lowByte);
+    return  result;
+}
+
+// might make 2 parameters to keep program counter tracked outside of functions
+uint16_t CPU_6502::create16Bit(uint8_t lowByte, uint8_t highByte)
+{
+    uint16_t result = (static_cast<uint16_t>(highByte) << 8) | lowByte;
+    return  result;
+}
 
 int main()
 {
