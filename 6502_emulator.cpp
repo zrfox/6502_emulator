@@ -38,6 +38,8 @@ private:
     uint16_t create16Bit(uint8_t lowByte);
     uint16_t create16Bit(uint8_t lowByte, uint8_t highByte);
 
+    uint16_t add8To16Bit(uint8_t eightBit, uint16_t sixteenBit);
+
 
 
 
@@ -45,6 +47,7 @@ public:
 
 };
 
+// Loads value passed to accumulator whether address value or constant value. 
 uint8_t CPU_6502::loadAccumulator(uint8_t byte)
 {
     // loads a byte of emmory into the accumulator setting the zero and neg flags as appropriate.
@@ -63,6 +66,7 @@ uint8_t CPU_6502::loadAccumulator(uint8_t byte)
 }
 
 // pass pointer because we need multiple bytes? make it by reference so it isn't a copy of pointer and points to something? 
+// use for all addressing: zero page, 
 uint8_t CPU_6502::getAddressValue(uint16_t address)
 {
     return this->m_memoryMap[address];
@@ -80,6 +84,10 @@ uint16_t CPU_6502::create16Bit(uint8_t lowByte, uint8_t highByte)
 {
     uint16_t result = (static_cast<uint16_t>(highByte) << 8) | lowByte;
     return  result;
+}
+
+uint16_t CPU_6502::add8To16Bit(uint8_t eightBit, uint16_t sixteenBit) {
+    uint16_t restult = (static_cast<uint16_t>(eightBit) + sixteenBit);
 }
 
 int main()
@@ -124,7 +132,7 @@ int disassemble6502(unsigned char* codeBuffer, int pc)
     unsigned char* opCode = &codeBuffer[pc];
     switch (*opCode) {
     case 0x00:
-        printf("BRK, ADRSM: Implied, Flags: ------- ", opCode);
+        printf("BRK, ADRSM: Implied, Flags: ------- ", *opCode);
         //The BRK instruction forces the generation of an interrupt request. The program counter and processor status are pushed on the stack then the IRQ interrupt vector at $FFFE/F is loaded into the PC and the break flag in the status set to one.
         break;
     case 0x01:
