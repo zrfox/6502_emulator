@@ -87,7 +87,8 @@ uint16_t CPU_6502::create16Bit(uint8_t lowByte, uint8_t highByte)
 }
 
 uint16_t CPU_6502::add8To16Bit(uint8_t eightBit, uint16_t sixteenBit) {
-    uint16_t restult = (static_cast<uint16_t>(eightBit) + sixteenBit);
+    uint16_t result = (static_cast<uint16_t>(eightBit) + sixteenBit);
+    return result;
 }
 
 int main()
