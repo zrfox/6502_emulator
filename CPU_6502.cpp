@@ -1,12 +1,11 @@
 #include <iostream>
 
-#include "6502_emulator.h"
+#include "CPU_6502.h"
 
 int disassemble6502(unsigned char* codeBuffer, int pc);
 
 void executeInstruction(uint8_t opcode);
 uint8_t decodeBase64(const uint8_t charB64);
-
 
 
 // Loads value passed to accumulator whether address value or constant value. 
