@@ -86,14 +86,10 @@ uint16_t CPU_6502::create16Bit(uint8_t lowByte, uint8_t highByte)
     return  result;
 }
 
+// I need to add with carry too probably...so maybe I'm ahead of myself here? Actually, LDA with X and Y  . Maybe just make a function for adding the carry flag? seems messy and a lot but idk maybe it's better? 
 uint16_t CPU_6502::add8To16Bit(uint8_t eightBit, uint16_t sixteenBit) {
     uint16_t result = (static_cast<uint16_t>(eightBit) + sixteenBit);
     return result;
-}
-
-int main()
-{
-    
 }
 
 // this will take the ASCII char used for base64 and make it the numerical value it represents
