@@ -4,12 +4,18 @@
 
 int disassemble6502(unsigned char* codeBuffer, int pc);
 
-void executeInstruction(uint8_t opcode);
-uint8_t decodeBase64(const uint8_t charB64);
+CPU_6502::CPU_6502() {
+    this->m_memoryMap = std::make_unique<uint8_t[]>(0x10000);
+}
 
+// copy memory from file or array to set memoryMap data
+void CPU_6502::assignMemory(uint8_t* rom, size_t size) {
+    memcpy(this->m_memoryMap.get(), rom, size);
+}
 
-// Loads value passed to accumulator whether address value or constant value. 
-uint8_t CPU_6502::loadAccumulator(uint8_t byte)
+// Loads passed value into accumulator. Final step for all LDA instructions. 
+// works for immediate addressing, need to find value at address before running this. 
+void CPU_6502::loadAccumulator(uint8_t byte)
 {
     // loads a byte of emmory into the accumulator setting the zero and neg flags as appropriate.
     // you can load constant values and values at addresses I think? So, should I have a separate function for getting values from addresses to pass here?
@@ -26,14 +32,15 @@ uint8_t CPU_6502::loadAccumulator(uint8_t byte)
     }
 }
 
-// pass pointer because we need multiple bytes? make it by reference so it isn't a copy of pointer and points to something? 
-// use for all addressing: zero page, 
+// pass pointer because we need multiple bytes? make it by reference so it isn't a copy of pointer and points to something? Don't think copy of pointer is an issue.
+// use for most addressing: zero page, 
 uint8_t CPU_6502::getAddressValue(uint16_t address)
 {
     return this->m_memoryMap[address];
 }
 
 // maybe this is overkill to have a function just to static_cast? idk, feels clean atm. 
+// Think I'll change this to just static cast in the execute function branch
 uint16_t CPU_6502::create16Bit(uint8_t lowByte)
 {
     uint16_t result = static_cast<uint16_t>(lowByte);
@@ -55,7 +62,7 @@ uint16_t CPU_6502::add8To16Bit(uint8_t eightBit, uint16_t sixteenBit) {
 
 // this will take the ASCII char used for base64 and make it the numerical value it represents
 // do we need to add + 0 to make sure this evaluates to a numerical value? idk if it matters
-uint8_t decodeBase64(const uint8_t charB64)
+uint8_t CPU_6502::decodeBase64(const uint8_t charB64)
 {
     //if value is >= 'A' and <= 'Z' then subtract 'A'
     return (charB64 >= 'A' && charB64 <= 'Z') ? (charB64 - 'A' + 0)
@@ -70,17 +77,109 @@ uint8_t decodeBase64(const uint8_t charB64)
         // if + num is 62 else num is 63
 }
 
-void executeInstruction(uint8_t opcode)
+// pass memory map to this indexed by program counter
+// depending on the operation, can access next byte with this->m_memoryMap[programCounter]
+void CPU_6502::executeInstruction(uint8_t pc)
 {
+    uint8_t opcode = this->m_memoryMap[pc];
+    
+    // increment counter to next instruction
+    pc++;
     // divide opcode by 6 to find which base64 character holds the bit to represent that opcode's flag
     uint8_t index = opcode / 6;
     // remainder determines which bit of the 6 is the exact bit in that base64 character
     uint8_t bit = opcode % 6;
     // shift constant bit times to get the proper bitmask
     uint8_t bitmask = 1 << bit;
-#define t(pattern) if (decodeBase64(pattern[index]) & bitmask)
 
-    t("");
+    // instruction is a temporary variable for testing the macro
+    uint8_t instruction = 66;
+    uint16_t tmpAddress = 0;
+
+    int cycles = 0;
+#define t(pattern) if (decodeBase64(pattern[index]) & bitmask)
+    
+    //get instruction address for processing CHANGE STRING
+    t("=========================g=SgiI") {
+        
+        // get zero page address mode NEED TO CHANGE STRING
+        t("=========================g=SgiI") {
+            tmpAddress = static_cast<uint16_t>(this->m_memoryMap[pc]);
+            cycles += 3;
+        }
+
+        // get ZERO PAGE, X mode NEED TO CHANGE STRING
+        t("=========================g=SgiI") {
+            tmpAddress = static_cast<uint16_t>(this->m_memoryMap[pc]) + static_cast<uint16_t>(this->m_indexRegX);
+            if (tmpAddress > 0xFF) {
+                tmpAddress -= 0x100;
+            }
+            cycles += 4;
+        }
+
+        // get ABSOLUTE address mode NEED TO CHANGE STRING
+        t("=========================g=SgiI") {
+            // pc is + 1 and 2 if pc is still on opcode. (I incremented pc after initing opcode
+            tmpAddress = ((static_cast<uint16_t>(this->m_memoryMap[pc + 1]) << 8) | this->m_memoryMap[pc]);
+            cycles += 4;
+
+        }
+
+        // get ABSOLUTE, X NEED TO CHANGE STRING
+        t("=========================g=SgiI") {
+            // pc is + 1 and 2 if pc is still on opcode. 
+            uint16_t instructionAddress = ((static_cast<uint16_t>(this->m_memoryMap[pc + 1]) << 8) | this->m_memoryMap[pc]);
+            uint16_t tmpAddress = instructionAddress + +this->m_indexRegX;
+            if((instructionAddress / 0x100) != (tmpAddress / 0x100))
+            {
+                cycles += 5;
+            }
+            else {
+                cycles += 4;
+            }
+        }
+
+        // get ABSOLUTE, Y NEED TO CHANGE STRING
+        t("=========================g=SgiI") {
+            // pc is + 1 and 2 if pc is still on opcode. 
+            tmpAddress = ((static_cast<uint16_t>(this->m_memoryMap[pc + 1]) << 8) | this->m_memoryMap[pc]) + this->m_indexRegY;
+        }
+
+        // get INDIRECT, X NEED TO CHANGE STRING
+        // this needs wraparound! Done.
+        t("=========================g=SgiI") {
+             uint8_t tmpAddress = ((static_cast<uint16_t>(this->m_memoryMap[pc])) + this->m_indexRegX);
+             // check wraparound
+             if (tmpAddress > 0xFF) {
+                 tmpAddress -= 0x100;
+             }
+             
+        }
+
+        // get Indirect, Y address mode NEED TO CHANGE STRING
+        t("=========================g=SgiI") {
+            // could there be an issue with invalid index adding 1 to pc here? could these mess up and not wrap around? 
+            uint8_t tmpAddress = ((((static_cast<uint16_t>(this->m_memoryMap[pc + 1])) << 8) | this->m_memoryMap[pc]) + this->m_indexRegX);
+        }
+    }
+
+    // add addresses (Zero page, X... etc.)  CHANGE STRING
+    t("=========================g=SgiI") {
+
+        // OPCodes that add X register CHANGE STRING
+        t("=========================g===CI") {
+            tmpAddress = this->m_memoryMap[pc + 1] + this->m_indexRegX;
+        }
+        //tmpAddress = this->m_memoryMap[pc + 1] + this->
+    }
+
+    t("=========================g=SgiI") {
+        getAddressValue(this->m_memoryMap[pc]);
+    }
+    t("=========================gESgiI") {
+    // uint8_t instruction = this->m_memoryMap[this->m_programCounter + 1] ||| I don't know yet if this is the value, will need to figure this out in other cases before loadAccumulator 
+        loadAccumulator(instruction);
+}
 
 
 }
@@ -90,7 +189,7 @@ int disassemble6502(unsigned char* codeBuffer, int pc)
     unsigned char* opCode = &codeBuffer[pc];
     switch (*opCode) {
     case 0x00:
-        printf("BRK, ADRSM: Implied, Flags: ------- ", *opCode);
+        printf("BRK, ADRSM: Implied, Flags: ------- " + *opCode);
         //The BRK instruction forces the generation of an interrupt request. The program counter and processor status are pushed on the stack then the IRQ interrupt vector at $FFFE/F is loaded into the PC and the break flag in the status set to one.
         break;
     case 0x01:
@@ -228,5 +327,5 @@ int disassemble6502(unsigned char* codeBuffer, int pc)
 
     }
     
-
+    return 0;
 }
