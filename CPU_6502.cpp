@@ -94,29 +94,34 @@ void CPU_6502::executeInstruction(uint8_t pc)
 
     // instruction is a temporary variable for testing the macro
     uint8_t instruction = 66;
+    // tmpAddress is being used as the final address currently
     uint16_t tmpAddress = 0;
 
     int cycles = 0;
 #define t(pattern) if (decodeBase64(pattern[index]) & bitmask)
     
-    //get instruction address for processing CHANGE STRING
+    //get instruction address branch... for later processing CHANGE STRING
     t("=========================g=SgiI") {
         
+        //done
         // get zero page address mode NEED TO CHANGE STRING
         t("=========================g=SgiI") {
             tmpAddress = static_cast<uint16_t>(this->m_memoryMap[pc]);
             cycles += 3;
         }
 
+        // using uint8_t should naturally wrap-around. No need to check since cycles always 4 (wrap-around means stays on same page).
         // get ZERO PAGE, X mode NEED TO CHANGE STRING
         t("=========================g=SgiI") {
-            tmpAddress = static_cast<uint16_t>(this->m_memoryMap[pc]) + static_cast<uint16_t>(this->m_indexRegX);
-            if (tmpAddress > 0xFF) {
-                tmpAddress -= 0x100;
-            }
+            int8_t lowByteAddress =  this->m_memoryMap[pc] + this->m_indexRegX;
+            // checks for wrap-around ahead of time. int8_t will wrap-around on its own at overflow.
+            int8_t highByteAddress = lowByteAddress + 1;
+            // if the lowByte is the last address on zero page couldn't this accidnetally cross over? 
+            tmpAddress = static_cast<uint16_t>(this->m_memoryMap[highByteAddress]) << 8 + this->m_memoryMap[lowByteAddress];
             cycles += 4;
         }
 
+        //done
         // get ABSOLUTE address mode NEED TO CHANGE STRING
         t("=========================g=SgiI") {
             // pc is + 1 and 2 if pc is still on opcode. (I incremented pc after initing opcode
@@ -125,11 +130,16 @@ void CPU_6502::executeInstruction(uint8_t pc)
 
         }
 
+        //done
+        // do not need to check if instructionAddress low and high byte are on different pages since the 6502 has no issue moving over a byte in its structure.
+        // the problem of adding a cycle only arises when a register adds to the address because the CPU needs to correct itself which takes a cycle. 
         // get ABSOLUTE, X NEED TO CHANGE STRING
         t("=========================g=SgiI") {
             // pc is + 1 and 2 if pc is still on opcode. 
             uint16_t instructionAddress = ((static_cast<uint16_t>(this->m_memoryMap[pc + 1]) << 8) | this->m_memoryMap[pc]);
-            uint16_t tmpAddress = instructionAddress + +this->m_indexRegX;
+            tmpAddress = instructionAddress + +this->m_indexRegX;
+
+            // adds 5 cycles if adding X crosses a memory page
             if((instructionAddress / 0x100) != (tmpAddress / 0x100))
             {
                 cycles += 5;
@@ -139,31 +149,53 @@ void CPU_6502::executeInstruction(uint8_t pc)
             }
         }
 
+        //done 
         // get ABSOLUTE, Y NEED TO CHANGE STRING
         t("=========================g=SgiI") {
             // pc is + 1 and 2 if pc is still on opcode. 
-            tmpAddress = ((static_cast<uint16_t>(this->m_memoryMap[pc + 1]) << 8) | this->m_memoryMap[pc]) + this->m_indexRegY;
+            uint16_t instructionAddress = ((static_cast<uint16_t>(this->m_memoryMap[pc + 1]) << 8) | this->m_memoryMap[pc]);
+            tmpAddress = instructionAddress + this->m_indexRegY;
+            if ((instructionAddress / 0x100) != (tmpAddress / 0x100))
+            {
+                cycles += 5;
+            }
+            else {
+                cycles += 4;
+            }
         }
 
-        // get INDIRECT, X NEED TO CHANGE STRING
-        // this needs wraparound! Done.
+        //done
+        // get INDIRECT, X. Uses Zero page. NEED TO CHANGE STRING
+        // aka "Indexed indirect."
+        // Wraps around zero page. Does not add additional cycles. Always 6. Don't need to check if wrap-around happened. So, uses &0xFF to wrap-around (knocks off the high byte).
         t("=========================g=SgiI") {
-             uint8_t tmpAddress = ((static_cast<uint16_t>(this->m_memoryMap[pc])) + this->m_indexRegX);
-             // check wraparound
-             if (tmpAddress > 0xFF) {
-                 tmpAddress -= 0x100;
-             }
+             uint8_t lowByteAddress = this->m_memoryMap[pc] + this->m_indexRegX;
+             uint8_t highByteAddress = lowByteAddress + 1;
+             tmpAddress = ((static_cast<uint16_t>(this->m_memoryMap[highByteAddress + 1]) << 8) +this->m_memoryMap[lowByteAddress]);
+             cycles += 6;
              
         }
 
-        // get Indirect, Y address mode NEED TO CHANGE STRING
+        // done
+        // get Indirect, Y address mode. Uses Zero page. NEED TO CHANGE STRING
+        // aka "Indirect Indexed." Get 16 bit using address in instruction as lower byte, add the next byte in memory as higher byte, then add Y. 
+        // you check if page is crossed after adding Y. 
         t("=========================g=SgiI") {
             // could there be an issue with invalid index adding 1 to pc here? could these mess up and not wrap around? 
-            uint8_t tmpAddress = ((((static_cast<uint16_t>(this->m_memoryMap[pc + 1])) << 8) | this->m_memoryMap[pc]) + this->m_indexRegX);
+            uint16_t instructionAddress = (((static_cast<uint16_t>(this->m_memoryMap[pc + 1])) << 8) | this->m_memoryMap[pc]);
+            tmpAddress = instructionAddress + this->m_indexRegY;
+
+            if ((instructionAddress / 0x100) != (tmpAddress / 0x100))
+            {
+                cycles += 6;
+            }
+            else {
+                cycles += 5;
+            }
         }
     }
-
-    // add addresses (Zero page, X... etc.)  CHANGE STRING
+ //STRI <-- idk why this was here uncommented
+    // add addresses (Zero page, X... etc.)  CHANGENG
     t("=========================g=SgiI") {
 
         // OPCodes that add X register CHANGE STRING
