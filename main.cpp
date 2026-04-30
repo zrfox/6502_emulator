@@ -25,6 +25,12 @@ int main()
 	//std::cout << static_cast<signed int>(obj.m_accumulator) << std::endl;
 
 
+	//pc is equal to zero right now, so it will index the value of 0xAE, absolute address mode. 
+	uint8_t memoryMap[] = { 0xAE, 0xFF, 0x01 };
+	obj.assignMemory(memoryMap, size_t(3));
+	obj.executeInstruction(obj.m_programCounter);
+	/*
+
 	// testing wrap around for indirect, x
 	uint8_t memoryMap[] = { 0x0F, 0xFF };
 	uint8_t indexRegX = 0xFF;
@@ -35,6 +41,8 @@ int main()
 		tmpAddress -= 0xFF;
 	}
 	std::cout << tmpAddress << std::endl;
+	*/
+
 
 
 	return 0;

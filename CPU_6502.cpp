@@ -26,6 +26,7 @@ void CPU_6502::loadAccumulator(uint8_t byte)
     {
         this->m_zero = 1;
     }
+    // bitwise and byte with 1000 0000, which is non-zero if the 7th bit is set on byte. 
     else if (byte & 128)
     {
         this->m_negative = 1;
@@ -55,7 +56,8 @@ uint16_t CPU_6502::create16Bit(uint8_t lowByte, uint8_t highByte)
 }
 
 // I need to add with carry too probably...so maybe I'm ahead of myself here? Actually, LDA with X and Y  . Maybe just make a function for adding the carry flag? seems messy and a lot but idk maybe it's better? 
-uint16_t CPU_6502::add8To16Bit(uint8_t eightBit, uint16_t sixteenBit) {
+uint16_t CPU_6502::add8To16Bit(uint8_t eightBit, uint16_t sixteenBit) 
+{
     uint16_t result = (static_cast<uint16_t>(eightBit) + sixteenBit);
     return result;
 }
@@ -68,7 +70,9 @@ uint8_t CPU_6502::decodeBase64(const uint8_t charB64)
     return (charB64 >= 'A' && charB64 <= 'Z') ? (charB64 - 'A' + 0)
         : (charB64 >= 'a' && charB64 <= 'z') ? (charB64 - 'a' + 26)
         : (charB64 >= '0' && charB64 <= '9') ? (charB64 - '0' + 52)
-        : (charB64 == '+') ? 62 : 63;
+        : (charB64 == '+') ? 62
+        : (charB64 == '/') ? 63
+        : 0;
 
         // if value is >= 'a' and <= 'z' then subtract 'a' and add 26
 
@@ -79,7 +83,9 @@ uint8_t CPU_6502::decodeBase64(const uint8_t charB64)
 
 // pass memory map to this indexed by program counter
 // depending on the operation, can access next byte with this->m_memoryMap[programCounter]
-void CPU_6502::executeInstruction(uint8_t pc)
+// does this even need to be a parameter? Can't I just access it with this->?
+// I think this parameter should be uint16_t since the program counter is 16 bits...and the memory addresses in the memoryMap are 16 bits too. 
+void CPU_6502::executeInstruction(uint16_t pc)
 {
     uint8_t opcode = this->m_memoryMap[pc];
     
@@ -100,41 +106,70 @@ void CPU_6502::executeInstruction(uint8_t pc)
     int cycles = 0;
 #define t(pattern) if (decodeBase64(pattern[index]) & bitmask)
     
-    //get instruction address branch... for later processing CHANGE STRING
-    t("=========================g=SgiI") {
-        
+    // "address mode conditional branch(es)" for getting instruction address ... for later processing CHANGE STRING
+    // any operation that requires getting an address will pass this condition. 
+    // the following conditions are separated by address modes.
+    // need to update this STRING!
+    t("///////////////////////////////")
+    {
+
+        // Immediate address mode
+        t("=I====g=====C====I========QBC===BI===Eg====")
+        {
+            /*
+            if (LDA opcode)
+            {
+                // loads second byte of instruction, which is the immediate value. (The first byte is the opcode.)
+               loadAccumulator(this->m_memoryMap[pc])
+
+            }*/
+        }
+         
         //done
-        // get zero page address mode NEED TO CHANGE STRING
-        t("=========================g=SgiI") {
+        // get zero page address mode - string updated
+        t("gB====H====Y====gB====H====c====wB====H====")
+        {
+            // ENTERED HERE FIRST
             tmpAddress = static_cast<uint16_t>(this->m_memoryMap[pc]);
             cycles += 3;
         }
 
         // using uint8_t should naturally wrap-around. No need to check since cycles always 4 (wrap-around means stays on same page).
-        // get ZERO PAGE, X mode NEED TO CHANGE STRING
-        t("=========================g=SgiI") {
+        // get ZERO PAGE, X mode - string updated
+        t("===Y====gB====G====Y====w=====D====Y====gB=")
+        {
             int8_t lowByteAddress =  this->m_memoryMap[pc] + this->m_indexRegX;
             // checks for wrap-around ahead of time. int8_t will wrap-around on its own at overflow.
             int8_t highByteAddress = lowByteAddress + 1;
-            // if the lowByte is the last address on zero page couldn't this accidnetally cross over? 
-            tmpAddress = static_cast<uint16_t>(this->m_memoryMap[highByteAddress]) << 8 + this->m_memoryMap[lowByteAddress];
+            // if the lowByte is the last address on zero page couldn't this accidnetally cross over? <- fixed by using low and High address with type int8_t
+            tmpAddress = (static_cast<uint16_t>(this->m_memoryMap[highByteAddress]) << 8) + this->m_memoryMap[lowByteAddress];
             cycles += 4;
         }
 
+        // ZERO PAGE, Y mode
+        t("=========================B====E============")
+        {
+
+        }
+
+
         //done
-        // get ABSOLUTE address mode NEED TO CHANGE STRING
-        t("=========================g=SgiI") {
+        // get ABSOLUTE address mode - string changed
+        t("==G==E=c====wB====G====c====wB====H====c===")
+        {
             // pc is + 1 and 2 if pc is still on opcode. (I incremented pc after initing opcode
             tmpAddress = ((static_cast<uint16_t>(this->m_memoryMap[pc + 1]) << 8) | this->m_memoryMap[pc]);
             cycles += 4;
+            std::cout << "Testing vars in executeInstructionscope:\n tmpAddress: " << tmpAddress << "\n cycles: " << cycles;
 
         }
 
         //done
         // do not need to check if instructionAddress low and high byte are on different pages since the 6502 has no issue moving over a byte in its structure.
         // the problem of adding a cycle only arises when a register adds to the address because the CPU needs to correct itself which takes a cycle. 
-        // get ABSOLUTE, X NEED TO CHANGE STRING
-        t("=========================g=SgiI") {
+        // get ABSOLUTE, X - string updated
+        t("====gB====G====Y====gB====C====M====gB====G")
+        {
             // pc is + 1 and 2 if pc is still on opcode. 
             uint16_t instructionAddress = ((static_cast<uint16_t>(this->m_memoryMap[pc + 1]) << 8) | this->m_memoryMap[pc]);
             tmpAddress = instructionAddress + +this->m_indexRegX;
@@ -150,8 +185,9 @@ void CPU_6502::executeInstruction(uint8_t pc)
         }
 
         //done 
-        // get ABSOLUTE, Y NEED TO CHANGE STRING
-        t("=========================g=SgiI") {
+        // get ABSOLUTE, Y - string updated
+        t("====C====I====g=====C====I====gQ====C====I=")
+        {
             // pc is + 1 and 2 if pc is still on opcode. 
             uint16_t instructionAddress = ((static_cast<uint16_t>(this->m_memoryMap[pc + 1]) << 8) | this->m_memoryMap[pc]);
             tmpAddress = instructionAddress + this->m_indexRegY;
@@ -164,11 +200,18 @@ void CPU_6502::executeInstruction(uint8_t pc)
             }
         }
 
+        // INDIRECT (without x or y), used by 0x6c only - string updated
+        t("==================B========================")
+        {
+
+        }
+
         //done
-        // get INDIRECT, X. Uses Zero page. NEED TO CHANGE STRING
+        // get INDIRECT, X. Uses Zero page. - string updated
         // aka "Indexed indirect."
         // Wraps around zero page. Does not add additional cycles. Always 6. Don't need to check if wrap-around happened. So, uses &0xFF to wrap-around (knocks off the high byte).
-        t("=========================g=SgiI") {
+        t("C====I====g=====C====I====g=====C====I=====")
+        {
              uint8_t lowByteAddress = this->m_memoryMap[pc] + this->m_indexRegX;
              uint8_t highByteAddress = lowByteAddress + 1;
              tmpAddress = ((static_cast<uint16_t>(this->m_memoryMap[highByteAddress + 1]) << 8) +this->m_memoryMap[lowByteAddress]);
@@ -177,10 +220,11 @@ void CPU_6502::executeInstruction(uint8_t pc)
         }
 
         // done
-        // get Indirect, Y address mode. Uses Zero page. NEED TO CHANGE STRING
+        // get Indirect, Y address mode. Uses Zero page.- string updated
         // aka "Indirect Indexed." Get 16 bit using address in instruction as lower byte, add the next byte in memory as higher byte, then add Y. 
         // you check if page is crossed after adding Y. 
-        t("=========================g=SgiI") {
+        t("==g=====C====I====g=====C====I====g=====C==")
+        {
             // could there be an issue with invalid index adding 1 to pc here? could these mess up and not wrap around? 
             uint16_t instructionAddress = (((static_cast<uint16_t>(this->m_memoryMap[pc + 1])) << 8) | this->m_memoryMap[pc]);
             tmpAddress = instructionAddress + this->m_indexRegY;
@@ -193,10 +237,23 @@ void CPU_6502::executeInstruction(uint8_t pc)
                 cycles += 5;
             }
         }
+
+        // RELATIVE address mode. 
+        t("==Q=====B====E====Q=====B====E====Q=====B==")
+        {
+
+        }
+
+        // IMPLIED ADDRESS MODE - first character is A, which represents 0x00
+        t("BE=BQ=B==U=BQ=F==U=BQ=B==EB=Q=B=QE==Q=B==EB")
+        {
+
+        }
     }
  //STRI <-- idk why this was here uncommented
     // add addresses (Zero page, X... etc.)  CHANGENG
-    t("=========================g=SgiI") {
+    t("=========================g=SgiI")
+    {
 
         // OPCodes that add X register CHANGE STRING
         t("=========================g===CI") {
@@ -205,159 +262,15 @@ void CPU_6502::executeInstruction(uint8_t pc)
         //tmpAddress = this->m_memoryMap[pc + 1] + this->
     }
 
-    t("=========================g=SgiI") {
+    t("=========================g=SgiI")
+    {
         getAddressValue(this->m_memoryMap[pc]);
     }
-    t("=========================gESgiI") {
+    t("=========================gESgiI")
+    {
     // uint8_t instruction = this->m_memoryMap[this->m_programCounter + 1] ||| I don't know yet if this is the value, will need to figure this out in other cases before loadAccumulator 
         loadAccumulator(instruction);
-}
-
-
-}
-
-int disassemble6502(unsigned char* codeBuffer, int pc) 
-{
-    unsigned char* opCode = &codeBuffer[pc];
-    switch (*opCode) {
-    case 0x00:
-        printf("BRK, ADRSM: Implied, Flags: ------- " + *opCode);
-        //The BRK instruction forces the generation of an interrupt request. The program counter and processor status are pushed on the stack then the IRQ interrupt vector at $FFFE/F is loaded into the PC and the break flag in the status set to one.
-        break;
-    case 0x01:
-        printf("");
-        break;
-
-    case 0x02:
-        printf("");
-        break;
-
-    case 0x03:
-        printf("");
-        break;
-
-    case 0x04:
-        printf("");
-        break;
-
-    case 0x05:
-        printf("");
-        break;
-
-    case 0x06:
-        printf("");
-        break;
-
-    case 0x07:
-        printf("");
-        break;
-
-    case 0x08:
-        printf("");
-        break;
-
-    case 0x09:
-        printf("");
-        break;
-
-    case 0x11:
-        printf("");
-        break;
-
-    case 0x12:
-        printf("");
-        break;
-
-    case 0x13:
-        printf("");
-        break;
-
-    case 0x14:
-        printf("");
-        break;
-
-    case 0x15:
-        printf("");
-        break;
-
-    case 0x16:
-        printf("");
-        break;
-
-    case 0x17:
-        printf("");
-        break;
-
-    case 0x18:
-        printf("");
-        break;
-
-    case 0x19:
-        printf("");
-        break;
-
-    case 0x20:
-        printf("");
-        break;
-
-    case 0x21:
-        printf("");
-        break;
-
-    case 0x22:
-        printf("");
-        break;
-
-    case 0x23:
-        printf("");
-        break;
-
-    case 0x24:
-        printf("");
-        break;
-
-    case 0x25:
-        printf("");
-        break;
-
-    case 0x26:
-        printf("");
-        break;
-
-    case 0x27:
-        printf("");
-        break;
-
-    case 0x28:
-        printf("");
-        break;
-
-    case 0x29:
-        printf("");
-        break;
-
-    case 0x30:
-        printf("");
-        break;
-
-    case 0x31:
-        printf("");
-        break;
-
-    case 0x32:
-        printf("");
-        break;
-
-    case 0x33:
-        printf("");
-        break;
-
-    case 0x34:
-        printf("");
-        break;
-
-
     }
-    
-    return 0;
+
+
 }

@@ -40,7 +40,7 @@ private:
 
 
 public:
-    void executeInstruction(uint8_t opcode);
+    void executeInstruction(uint16_t opcode);
     uint8_t decodeBase64(const uint8_t charB64);    
 
     CPU_6502();
