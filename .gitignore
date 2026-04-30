@@ -1,3 +1,26 @@
+# Build output
+x64/
+Debug/
+Release/
+*.exe
+*.pdb
+*.ilk
+*.obj
+*.idb
+*.tlog
+*.enc
+*.log
+
+# Visual Studio files
 .vs/
-bin/
-obj/
+*.user
+*.suo
+*.vcxproj.filters
+*.VC.db
+*.VC.opendb
+ipch/
+
+# Compiled
+*.lib
+*.dll
+*.exp
