@@ -2,6 +2,7 @@
 
 #include "CPU_6502.h"
 
+// pc arg by value for disassembler? Maybe, we don't necessarily want it to affect the actual CPU? Could we run both CPU and disassembler at the same time for debugging? 
 int disassemble6502(unsigned char* codeBuffer, int pc);
 
 CPU_6502::CPU_6502() {
@@ -35,6 +36,9 @@ void CPU_6502::loadAccumulator(uint8_t byte)
 
 // pass pointer because we need multiple bytes? make it by reference so it isn't a copy of pointer and points to something? Don't think copy of pointer is an issue.
 // use for most addressing: zero page, 
+
+// does this actually work? because the memory map in the actual cpu stores the 16 bit address 
+// yes, I think so. Confused myself. It's an array of bytes (8-bits) but the size of the address space goes to the max value of 16 bits ~65k
 uint8_t CPU_6502::getAddressValue(uint16_t address)
 {
     return this->m_memoryMap[address];
@@ -85,12 +89,12 @@ uint8_t CPU_6502::decodeBase64(const uint8_t charB64)
 // depending on the operation, can access next byte with this->m_memoryMap[programCounter]
 // does this even need to be a parameter? Can't I just access it with this->?
 // I think this parameter should be uint16_t since the program counter is 16 bits...and the memory addresses in the memoryMap are 16 bits too. 
-void CPU_6502::executeInstruction(uint16_t pc)
+void CPU_6502::executeInstruction()
 {
-    uint8_t opcode = this->m_memoryMap[pc];
+    uint8_t opcode = this->m_memoryMap[this->m_programCounter];
     
     // increment counter to next instruction
-    pc++;
+    this->m_programCounter++;
     // divide opcode by 6 to find which base64 character holds the bit to represent that opcode's flag
     uint8_t index = opcode / 6;
     // remainder determines which bit of the 6 is the exact bit in that base64 character
@@ -113,16 +117,42 @@ void CPU_6502::executeInstruction(uint16_t pc)
     t("///////////////////////////////")
     {
 
-        // Immediate address mode
+        // Immediate address mode - Immediate addressing allows the programmer to directly specify an 8 bit constant within the instruction. 
         t("=I====g=====C====I========QBC===BI===Eg====")
         {
             /*
             if (LDA opcode)
             {
                 // loads second byte of instruction, which is the immediate value. (The first byte is the opcode.)
-               loadAccumulator(this->m_memoryMap[pc])
+               loadAccumulator(this->m_memoryMap[this->m_programCounter])
 
             }*/
+            // ADC Immediate 
+            if (opcode == 0x69)
+            {
+                // need to check for overflow. Set carry if overflow occurs - "this enables multiple byte addition to be performed.  
+                uint16_t result16Bit = this->m_accumulator + this->m_memoryMap[this->m_programCounter] + this->m_carry;
+                uint8_t result8Bit = this->m_accumulator + this->m_memoryMap[this->m_programCounter] + this->m_carry;
+                this->m_overflow = (result16Bit > 0xFF) ? 1 : 0;
+                this->m_zero = (result16Bit == 0) ? 1 : 0;
+                this->m_negative = (~(result8Bit ^ 0x80) & 0x80) ? 1 : 0;
+                cycles += 2;
+            }
+            // NEED TO check for page cross..for other addres modes  
+
+            // ADC Zero Page
+            if (opcode == 0x65)
+            {
+                // get value 
+                uint16_t operandAddress = this->m_memoryMap[(static_cast<uint16_t>(this->m_memoryMap[this->m_programCounter]))];
+                uint16_t result16Bit = this->m_accumulator + this->m_memoryMap[this->m_programCounter] + this->m_carry;
+                uint8_t result8Bit = this->m_accumulator + this->m_memoryMap[this->m_programCounter] + this->m_carry;
+                this->m_overflow = (result16Bit > 0xFF) ? 1 : 0;
+                this->m_zero = (result16Bit == 0) ? 1 : 0;
+                this->m_negative = (~(result8Bit ^ 0x80) & 0x80) ? 1 : 0;
+                cycles += 2;
+            }
+
         }
          
         //done
@@ -130,7 +160,7 @@ void CPU_6502::executeInstruction(uint16_t pc)
         t("gB====H====Y====gB====H====c====wB====H====")
         {
             // ENTERED HERE FIRST
-            tmpAddress = static_cast<uint16_t>(this->m_memoryMap[pc]);
+            tmpAddress = static_cast<uint16_t>(this->m_memoryMap[this->m_programCounter]);
             cycles += 3;
         }
 
@@ -138,7 +168,7 @@ void CPU_6502::executeInstruction(uint16_t pc)
         // get ZERO PAGE, X mode - string updated
         t("===Y====gB====G====Y====w=====D====Y====gB=")
         {
-            int8_t lowByteAddress =  this->m_memoryMap[pc] + this->m_indexRegX;
+            int8_t lowByteAddress =  this->m_memoryMap[this->m_programCounter] + this->m_indexRegX;
             // checks for wrap-around ahead of time. int8_t will wrap-around on its own at overflow.
             int8_t highByteAddress = lowByteAddress + 1;
             // if the lowByte is the last address on zero page couldn't this accidnetally cross over? <- fixed by using low and High address with type int8_t
@@ -157,8 +187,8 @@ void CPU_6502::executeInstruction(uint16_t pc)
         // get ABSOLUTE address mode - string changed
         t("==G==E=c====wB====G====c====wB====H====c===")
         {
-            // pc is + 1 and 2 if pc is still on opcode. (I incremented pc after initing opcode
-            tmpAddress = ((static_cast<uint16_t>(this->m_memoryMap[pc + 1]) << 8) | this->m_memoryMap[pc]);
+            // this->m_programCounter is + 1 and 2 if this->m_programCounter is still on opcode. (I incremented this->m_programCounter after initing opcode
+            tmpAddress = ((static_cast<uint16_t>(this->m_memoryMap[this->m_programCounter + 1]) << 8) | this->m_memoryMap[this->m_programCounter]);
             cycles += 4;
             std::cout << "Testing vars in executeInstructionscope:\n tmpAddress: " << tmpAddress << "\n cycles: " << cycles;
 
@@ -170,8 +200,8 @@ void CPU_6502::executeInstruction(uint16_t pc)
         // get ABSOLUTE, X - string updated
         t("====gB====G====Y====gB====C====M====gB====G")
         {
-            // pc is + 1 and 2 if pc is still on opcode. 
-            uint16_t instructionAddress = ((static_cast<uint16_t>(this->m_memoryMap[pc + 1]) << 8) | this->m_memoryMap[pc]);
+            // this->m_programCounter is + 1 and 2 if this->m_programCounter is still on opcode. 
+            uint16_t instructionAddress = ((static_cast<uint16_t>(this->m_memoryMap[this->m_programCounter + 1]) << 8) | this->m_memoryMap[this->m_programCounter]);
             tmpAddress = instructionAddress + +this->m_indexRegX;
 
             // adds 5 cycles if adding X crosses a memory page
@@ -188,8 +218,8 @@ void CPU_6502::executeInstruction(uint16_t pc)
         // get ABSOLUTE, Y - string updated
         t("====C====I====g=====C====I====gQ====C====I=")
         {
-            // pc is + 1 and 2 if pc is still on opcode. 
-            uint16_t instructionAddress = ((static_cast<uint16_t>(this->m_memoryMap[pc + 1]) << 8) | this->m_memoryMap[pc]);
+            // this->m_programCounter is + 1 and 2 if this->m_programCounter is still on opcode. 
+            uint16_t instructionAddress = ((static_cast<uint16_t>(this->m_memoryMap[this->m_programCounter + 1]) << 8) | this->m_memoryMap[this->m_programCounter]);
             tmpAddress = instructionAddress + this->m_indexRegY;
             if ((instructionAddress / 0x100) != (tmpAddress / 0x100))
             {
@@ -212,7 +242,7 @@ void CPU_6502::executeInstruction(uint16_t pc)
         // Wraps around zero page. Does not add additional cycles. Always 6. Don't need to check if wrap-around happened. So, uses &0xFF to wrap-around (knocks off the high byte).
         t("C====I====g=====C====I====g=====C====I=====")
         {
-             uint8_t lowByteAddress = this->m_memoryMap[pc] + this->m_indexRegX;
+             uint8_t lowByteAddress = this->m_memoryMap[this->m_programCounter] + this->m_indexRegX;
              uint8_t highByteAddress = lowByteAddress + 1;
              tmpAddress = ((static_cast<uint16_t>(this->m_memoryMap[highByteAddress + 1]) << 8) +this->m_memoryMap[lowByteAddress]);
              cycles += 6;
@@ -225,8 +255,8 @@ void CPU_6502::executeInstruction(uint16_t pc)
         // you check if page is crossed after adding Y. 
         t("==g=====C====I====g=====C====I====g=====C==")
         {
-            // could there be an issue with invalid index adding 1 to pc here? could these mess up and not wrap around? 
-            uint16_t instructionAddress = (((static_cast<uint16_t>(this->m_memoryMap[pc + 1])) << 8) | this->m_memoryMap[pc]);
+            // could there be an issue with invalid index adding 1 to this->m_programCounter here? could these mess up and not wrap around? 
+            uint16_t instructionAddress = (((static_cast<uint16_t>(this->m_memoryMap[this->m_programCounter + 1])) << 8) | this->m_memoryMap[this->m_programCounter]);
             tmpAddress = instructionAddress + this->m_indexRegY;
 
             if ((instructionAddress / 0x100) != (tmpAddress / 0x100))
@@ -256,15 +286,16 @@ void CPU_6502::executeInstruction(uint16_t pc)
     {
 
         // OPCodes that add X register CHANGE STRING
-        t("=========================g===CI") {
-            tmpAddress = this->m_memoryMap[pc + 1] + this->m_indexRegX;
+        t("=========================g===CI")
+        {
+            tmpAddress = this->m_memoryMap[this->m_programCounter + 1] + this->m_indexRegX;
         }
-        //tmpAddress = this->m_memoryMap[pc + 1] + this->
+        //tmpAddress = this->m_memoryMap[this->m_programCounter + 1] + this->
     }
 
     t("=========================g=SgiI")
     {
-        getAddressValue(this->m_memoryMap[pc]);
+        getAddressValue(this->m_memoryMap[this->m_programCounter]);
     }
     t("=========================gESgiI")
     {
