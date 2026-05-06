@@ -10,9 +10,61 @@ CPU_6502::CPU_6502() {
 }
 
 // copy memory from file or array to set memoryMap data
-void CPU_6502::assignMemory(uint8_t* rom, size_t size) {
+void CPU_6502::assignMemory(uint8_t* rom, size_t size) 
+{
     memcpy(this->m_memoryMap.get(), rom, size);
 }
+
+// ADDRESS MODE FUNCTIONS. !!! NEEDS HANDLING FOR CROSSING PAGES ON SOME OF THESE!
+
+// IMPLICIT and ACCUMULATOR address modes will likely not have functions since the instructions with those modes are not uniform
+// Immediate does not require a function since it simply grabs the value at the location indexed by the programCounter
+
+// I'm calling it get...Value() for my own clarity to specify that this is getting/returning the value at the address and not the address itself. 
+// this could be simple enough that I don't need it. 
+uint8_t CPU_6502::getZeroPageValue(uint8_t zeroPageLowByte)
+{
+    uint16_t zeroPageAddress = static_cast<uint16_t>(zeroPageLowByte);
+    return this->m_memoryMap[zeroPageAddress];
+}
+
+uint8_t CPU_6502::getZeroPageOffsetValue(uint8_t address, uint8_t offset)
+{
+    // the result is uint8_t because zero page addresses wrapAround instead of crossing pages. 
+    uint8_t addressAfterOffset = address + offset;
+    return this->m_memoryMap[static_cast<uint16_t>(addressAfterOffset)];
+}
+
+
+uint8_t CPU_6502::getAbsoluteOffsetValue(uint16_t absoluteAddress, uint8_t offset)
+{
+    uint16_t addressAfterOffset = absoluteAddress + offset;
+    return this->m_memoryMap[addressAfterOffset];
+}
+
+// this is only for JMP. JMP opcode 0x6C, specifically. This (correctly) returns an address, not a value from an address. 
+uint16_t CPU_6502::getIndirectValue(uint16_t addressOfLowByte)
+{ // I NEED TO CHECK IF PAGES ARE CROSSED...maybe make a function for that? idk
+    uint16_t fullIndirectTargetAddress = create16Bit(this->m_memoryMap[addressOfLowByte], this->m_memoryMap[addressOfLowByte + 1]);
+    return fullIndirectTargetAddress;
+}
+
+// offset for this function is X register
+uint8_t CPU_6502::getIndexedIndirectValue(uint8_t tableAddress, uint8_t offset)
+{
+    // address of target low byte. uint8_t this wraps around. 
+    uint8_t addressAfterOffset = tableAddress + offset;
+    uint16_t targetAddress = create16Bit(this->m_memoryMap[addressAfterOffset], this->m_memoryMap[static_cast<uint8_t>(addressAfterOffset + 1)]);
+    return this->m_memoryMap[targetAddress];
+}
+
+// offset for this function is Y register
+uint8_t CPU_6502::getIndirectIndexedValue(uint8_t zeroPageLowByte, uint8_t offset)
+{
+    uint16_t addressAfterOffset = (create16Bit(this->m_memoryMap[zeroPageLowByte], this->m_memoryMap[static_cast<uint8_t>(zeroPageLowByte + 1)])) + static_cast<uint16_t>(offset);
+    return this->m_memoryMap[addressAfterOffset];
+}
+
 
 // Loads passed value into accumulator. Final step for all LDA instructions. 
 // works for immediate addressing, need to find value at address before running this. 
@@ -42,14 +94,6 @@ void CPU_6502::loadAccumulator(uint8_t byte)
 uint8_t CPU_6502::getAddressValue(uint16_t address)
 {
     return this->m_memoryMap[address];
-}
-
-// maybe this is overkill to have a function just to static_cast? idk, feels clean atm. 
-// Think I'll change this to just static cast in the execute function branch
-uint16_t CPU_6502::create16Bit(uint8_t lowByte)
-{
-    uint16_t result = static_cast<uint16_t>(lowByte);
-    return  result;
 }
 
 // might make 2 parameters to keep program counter tracked outside of functions
@@ -130,12 +174,15 @@ void CPU_6502::executeInstruction()
             // ADC Immediate 
             if (opcode == 0x69)
             {
-                // need to check for overflow. Set carry if overflow occurs - "this enables multiple byte addition to be performed.  
-                uint16_t result16Bit = this->m_accumulator + this->m_memoryMap[this->m_programCounter] + this->m_carry;
+                // need to check for overflow. Set carry if overflow occurs - "this enables multiple byte addition to be performed.
+
+                // immediate uses the value stored at programCounter's memory location as a literal, as opposed to the value stored being a low or high byte for a 16 bit address.
+                uint8_t valueAtAddress = this->m_memoryMap[this->m_programCounter];
+                uint16_t result16Bit = this->m_accumulator + valueAtAddress + this->m_carry;
                 uint8_t result8Bit = this->m_accumulator + this->m_memoryMap[this->m_programCounter] + this->m_carry;
                 this->m_overflow = (result16Bit > 0xFF) ? 1 : 0;
                 this->m_zero = (result16Bit == 0) ? 1 : 0;
-                this->m_negative = (~(result8Bit ^ 0x80) & 0x80) ? 1 : 0;
+                this->m_negative = (result8Bit & 0x80) ? 1 : 0;
                 cycles += 2;
             }
             // NEED TO check for page cross..for other addres modes  
@@ -143,14 +190,31 @@ void CPU_6502::executeInstruction()
             // ADC Zero Page
             if (opcode == 0x65)
             {
-                // get value 
-                uint16_t operandAddress = this->m_memoryMap[(static_cast<uint16_t>(this->m_memoryMap[this->m_programCounter]))];
-                uint16_t result16Bit = this->m_accumulator + this->m_memoryMap[this->m_programCounter] + this->m_carry;
+                // get value that pc is pointing to and make 16 bit because it's zero page. then get the value at the address
+                // (the pc is pointing to the low byte of a zero page address. The high byte is all zeros, so casting the low bit to uint16_t gets the full 16 bit address.)
+                uint8_t valueAtAddress = this->m_memoryMap[(static_cast<uint16_t>(this->m_memoryMap[this->m_programCounter]))];
+                uint16_t result16Bit = this->m_accumulator + valueAtAddress + this->m_carry;
+                uint8_t result8Bit = this->m_accumulator + this->m_memoryMap[this->m_programCounter] + this->m_carry;
+
+                // function to check these flags instead? 
+                this->m_overflow = (result16Bit > 0xFF) ? 1 : 0;
+                this->m_zero = (result16Bit == 0) ? 1 : 0;
+                this->m_negative = (result8Bit & 0x80) ? 1 : 0;
+                cycles += 3;
+            }
+
+            // ADC Zero Page, X
+            if (opcode == 0x65)
+            {
+                // get address of zeroPage byte and X address first as uint8_t. This is good because the address wrapsaround on the zero page. 
+                uint8_t zeroPagePlusXAddress = this->m_memoryMap[this->m_programCounter] + this->m_indexRegX;
+                uint8_t valueAtAddress = this->m_memoryMap[(static_cast<uint16_t>(zeroPagePlusXAddress))];
+                uint16_t result16Bit = this->m_accumulator + valueAtAddress + this->m_carry;
                 uint8_t result8Bit = this->m_accumulator + this->m_memoryMap[this->m_programCounter] + this->m_carry;
                 this->m_overflow = (result16Bit > 0xFF) ? 1 : 0;
                 this->m_zero = (result16Bit == 0) ? 1 : 0;
-                this->m_negative = (~(result8Bit ^ 0x80) & 0x80) ? 1 : 0;
-                cycles += 2;
+                this->m_negative = (result8Bit & 0x80) ? 1 : 0;
+                cycles += 4;
             }
 
         }
@@ -168,10 +232,10 @@ void CPU_6502::executeInstruction()
         // get ZERO PAGE, X mode - string updated
         t("===Y====gB====G====Y====w=====D====Y====gB=")
         {
-            int8_t lowByteAddress =  this->m_memoryMap[this->m_programCounter] + this->m_indexRegX;
-            // checks for wrap-around ahead of time. int8_t will wrap-around on its own at overflow.
-            int8_t highByteAddress = lowByteAddress + 1;
-            // if the lowByte is the last address on zero page couldn't this accidnetally cross over? <- fixed by using low and High address with type int8_t
+            uint8_t lowByteAddress =  this->m_memoryMap[this->m_programCounter] + this->m_indexRegX;
+            // checks for wrap-around ahead of time. uint8_t will wrap-around on its own at overflow.
+            uint8_t highByteAddress = lowByteAddress + 1;
+            // if the lowByte is the last address on zero page couldn't this accidnetally cross over? <- fixed by using low and High address with type uint8_t
             tmpAddress = (static_cast<uint16_t>(this->m_memoryMap[highByteAddress]) << 8) + this->m_memoryMap[lowByteAddress];
             cycles += 4;
         }

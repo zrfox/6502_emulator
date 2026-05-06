@@ -29,9 +29,18 @@ private:
 
     // address modes
     uint8_t getAddressValue(uint16_t address);
+    uint8_t getZeroPageValue(uint8_t zeroPageLowByte);
+    uint8_t getZeroPageOffsetValue(uint8_t address, uint8_t offset);
+    uint8_t getAbsoluteOffsetValue(uint16_t absoluteAddress, uint8_t offset);
+    uint16_t getIndirectValue(uint16_t addressOfLowByte);
+    uint8_t getIndexedIndirectValue(uint8_t tableAddress, uint8_t offset);
+    uint8_t getIndirectIndexedValue(uint8_t zeroPageLowByte, uint8_t offset);
+
+
+
+
 
     // utilities
-    uint16_t create16Bit(uint8_t lowByte);
     uint16_t create16Bit(uint8_t lowByte, uint8_t highByte);
 
     uint16_t add8To16Bit(uint8_t eightBit, uint16_t sixteenBit);
@@ -40,7 +49,7 @@ private:
 
 
 public:
-    void executeInstruction(uint16_t opcode);
+    void executeInstruction();
     uint8_t decodeBase64(const uint8_t charB64);    
 
     CPU_6502();
