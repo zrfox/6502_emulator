@@ -28,7 +28,7 @@ int main()
 	//pc is equal to zero right now, so it will index the value of 0xAE, absolute address mode. 
 	uint8_t memoryMap[] = { 0xAE, 0xFF, 0x01 };
 	obj.assignMemory(memoryMap, size_t(3));
-	obj.executeInstruction(obj.m_programCounter);
+	obj.executeInstruction();
 	/*
 
 	// testing wrap around for indirect, x

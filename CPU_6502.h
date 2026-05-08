@@ -1,6 +1,9 @@
 #ifndef CPU_6502_H
 #define CPU_6502_H
 
+#include <cstdint>   // uint8_t, uint16_t, size_t
+#include <memory>    // std::unique_ptr
+
 class CPU_6502
 {
 private:
@@ -25,6 +28,11 @@ private:
     std::unique_ptr<uint8_t[]> m_memoryMap;
 
     // instructions
+    void addWithCarry(uint8_t valueFromMemory);
+    void logicalAnd(uint8_t valueFromMemory);
+    void arithmeticShiftLeft(uint8_t &valueToShift);
+
+
     void loadAccumulator(uint8_t byte);
 
     // address modes
@@ -37,14 +45,23 @@ private:
     uint8_t getIndirectIndexedValue(uint8_t zeroPageLowByte, uint8_t offset);
 
 
+    // flag functions
+    
+    // overloaded setCarry functions for when setting by single bit or checking arithmetic sum over 0xFF, respectively
+    void setCarry(bool value);
+    void setCarry(uint16_t sum);
+    void setZero(uint8_t sum);
+    void setOverflow(uint8_t val1, uint8_t val2, uint8_t sum);
+    void setNegative(uint8_t sum);
+    //void setDecimalMode(); <- Decimal mode is disabled for the NES. Might implement later for completeness. 
+
+
 
 
 
     // utilities
     uint16_t create16Bit(uint8_t lowByte, uint8_t highByte);
-
     uint16_t add8To16Bit(uint8_t eightBit, uint16_t sixteenBit);
-
     void assignMemory(uint8_t* rom, size_t size);
 
 

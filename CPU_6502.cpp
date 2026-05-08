@@ -9,6 +9,48 @@ CPU_6502::CPU_6502() {
     this->m_memoryMap = std::make_unique<uint8_t[]>(0x10000);
 }
 
+// Flag Functions
+
+// not going to implement this at this point
+/*
+void CPU_6502::setDecimalMode( )
+{
+}
+*/
+
+void CPU_6502::setCarry(bool value)
+{
+    this->m_carry = value;
+}
+
+
+// setCarry takes uint16 because it does num > 0xFF to check for carry. 
+void CPU_6502::setCarry(uint16_t sum)
+{
+    this->m_carry = (sum > 0xFF) ? 1 : 0;
+}
+
+void CPU_6502::setOverflow(uint8_t valForBothXOR, uint8_t val2, uint8_t result)
+{
+    // overflow can only occur between two bytes if the operands are the same sign and the result is the opposite sign
+    // & 0x80 makes sure we are only checking the 7th bit (the sign bit)
+    // the first ^ will set or keep the 7th bit zero if both 7th bits are the same. The NOT ~ will inverse the byte that results so the 7th bit WILL be set if signs are the same.
+    // the second ^ checks if valForBothXOR has a different sign than result. Truthy if different signs, falsy if same signs. If falsy, there was no overflow since the result shares a sign with one of the operands, which means both operands were not the same sign (which, as stated before, is required for overflow to occur.)
+    this->m_overflow = (~(valForBothXOR ^ val2) & (valForBothXOR ^ result)) & 0x80 ? 1 : 0;
+}
+
+// for adc, set if accumulator is zero at the end (we only care if 8 bits of accumulator = 0. We don't care if the carry is set and the full value when considering accumulator and carry is really above 0xFF. We are checking if accumulator is zero, even in cases of 8bit wrap around.)
+void CPU_6502::setZero(uint8_t sum)
+{
+    this->m_zero = (sum == 0) ? 1 : 0;
+}
+
+void CPU_6502::setNegative(uint8_t sum)
+{
+    this->m_negative = (sum & 0x80) ? 1 : 0;
+}
+
+
 // copy memory from file or array to set memoryMap data
 void CPU_6502::assignMemory(uint8_t* rom, size_t size) 
 {
@@ -65,6 +107,51 @@ uint8_t CPU_6502::getIndirectIndexedValue(uint8_t zeroPageLowByte, uint8_t offse
     return this->m_memoryMap[addressAfterOffset];
 }
 
+// Instruction functions...what's your functiiiiooon
+
+void CPU_6502::addWithCarry(uint8_t valueFromMemory)
+{
+    // use uint16_t to check if sum > 0xFF
+    uint16_t sum = valueFromMemory + this->m_accumulator + this->m_carry;
+    setCarry(sum);
+    // checks if sign flipped (for when considering signed values, I think)
+    // only want bottom 8 bits. Carry takes care of anything above 8 bits. 
+    uint8_t result = sum & 0xFF;
+    setOverflow(valueFromMemory, this->m_accumulator, result);
+    this->m_accumulator = result;
+
+    setZero(this->m_accumulator);
+    // negative if bit 7 set from last operation..which operation? the sum assigning the accumulator the result? - if accumulator result is 0 (from the manual)
+    setNegative(this->m_accumulator);
+
+    // set carry if overflow for multiple byte addition...set overflow if sign is wrong...how do I know if sign is wrong? check signs of original values? adding two positive numbers will never be negative, if both are negative never positive, if negative bigger than positive result is negative, otherwise positive. But positive and a negative can never overflow. 
+
+}
+
+// does AND return anything? probably - it sets the accumulator (from the manual)
+void CPU_6502::logicalAnd(uint8_t valueFromMemory)
+{
+    uint8_t result = valueFromMemory & this->m_accumulator;
+    this->m_accumulator = result;
+    // maybe directly setZero with accumulator since it's based on accumulator value. 
+    setZero(this->m_accumulator);
+    setNegative(this->m_accumulator);
+
+}
+
+// ASL - arithmetic shift left - occurs on accumulator or "the address memory location" (<- which means the value at the address)
+// pass by ref because we want to affect the value itself we are shifting. 
+// used to multiply memory contents by 2 (ignoring 2's complement considerations) - obelisk
+void CPU_6502::arithmeticShiftLeft(uint8_t &valueToShift)
+{
+    // how do i get the 7th bit if it moves? 0th bit is always zero btw
+    bool carryBit = valueToShift & 0x80;
+    setCarry(carryBit);
+
+    uint8_t result = valueToShift << 1;
+    setNegative(result);
+    setZero(result);
+}
 
 // Loads passed value into accumulator. Final step for all LDA instructions. 
 // works for immediate addressing, need to find value at address before running this. 
