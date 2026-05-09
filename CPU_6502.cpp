@@ -153,6 +153,62 @@ void CPU_6502::arithmeticShiftLeft(uint8_t &valueToShift)
     setZero(result);
 }
 
+// BCC - $90
+// idk of the offset is uint8 or 16. 
+// only relative address mode. cycles change if new page. 
+void CPU_6502::branchIfCarryClear(uint16_t& pc, uint8_t offset)
+{
+    if (!this->m_carry)
+    {
+        pc += static_cast<int8_t>(offset);
+    }
+}
+
+// BCS - $B0
+void CPU_6502::branchIfCarrySet(uint16_t& pc, uint8_t offset)
+{
+    if (this->m_carry)
+    {
+        pc += static_cast<int8_t>(offset);
+    }
+}
+
+// BEQ - $F0
+// "takes a conditional branch whenever the Z flag is on or the previous result is equal to 0" - manual
+void CPU_6502::branchIfEqual(uint16_t& pc, uint8_t offset)
+{
+    if (this->m_zero)
+    {
+        pc += static_cast<int8_t>(offset);
+    }
+}
+
+// BMI - $30
+void CPU_6502::branchIfMinus(uint16_t& pc, uint8_t offset)
+{
+    if (this->m_negative)
+    {
+        pc += static_cast<int8_t>(offset);
+    }
+}
+
+// BNE - $D0
+void CPU_6502::branchIfNotEqual(uint16_t& pc, uint8_t offset)
+{
+    if (!this->m_zero)
+    {
+        pc += static_cast<int8_t>(offset);
+    }
+}
+
+void CPU_6502::branchIfPositive(uint16_t& pc, uint8_t offset)
+{
+    if (!this->m_negative)
+    {
+        pc += static_cast<int8_t>(offset);
+    }
+}
+
 // Loads passed value into accumulator. Final step for all LDA instructions. 
 // works for immediate addressing, need to find value at address before running this. 
 void CPU_6502::loadAccumulator(uint8_t byte)

@@ -31,6 +31,15 @@ private:
     void addWithCarry(uint8_t valueFromMemory);
     void logicalAnd(uint8_t valueFromMemory);
     void arithmeticShiftLeft(uint8_t &valueToShift);
+    void branchIfCarryClear(uint16_t& pc, uint8_t offset);
+    void branchIfCarrySet(uint16_t& pc, uint8_t offset);
+    void branchIfEqual(uint16_t& pc, uint8_t offset);
+    void branchIfMinus(uint16_t& pc, uint8_t offset);
+    void branchIfNotEqual(uint16_t& pc, uint8_t offset);
+    void branchIfPositive(uint16_t& pc, uint8_t offset);
+    void branchIfOverflowClear(uint16_t& pc, uint8_t offset);
+    void branchIfOverflowSet(uint16_t& pc, uint8_t offset);
+
 
 
     void loadAccumulator(uint8_t byte);
